@@ -1,0 +1,18 @@
+name: Compare Docker image sizes
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # adds a "Run workflow" button in the Actions tab
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Build all 4 images, show sizes, and test each one
+        run: |
+          chmod +x compare-sizes.sh
+          ./compare-sizes.sh --test
