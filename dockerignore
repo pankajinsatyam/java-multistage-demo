@@ -1,0 +1,8 @@
+# Keep the build context small: Docker only needs pom.xml and src/
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+*.md
+compare-sizes.sh

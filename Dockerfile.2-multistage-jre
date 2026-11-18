@@ -1,0 +1,31 @@
+# =====================================================================
+# VERSION 2 — MULTI-STAGE: build with JDK, run with JRE
+#
+# Stage 1 ("build") has Maven + JDK and makes the jar.
+# Stage 2 starts FRESH from a small JRE image and copies ONLY the jar.
+# Everything from stage 1 (Maven, JDK, ~/.m2 cache, source code) is
+# thrown away — it never reaches the final image.
+# =====================================================================
+
+# ---------- Stage 1: build ----------
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+
+# Copy pom.xml first and download dependencies.
+# Docker caches this layer, so if only your code changes,
+# dependencies are NOT downloaded again (faster rebuilds).
+COPY pom.xml .
+RUN mvn -B dependency:go-offline
+
+COPY src ./src
+RUN mvn -B package -DskipTests
+
+# ---------- Stage 2: run ----------
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+
+COPY --from=build /app/target/app.jar app.jar
+
+ENV IMAGE_VARIANT=2-multistage-jre
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]

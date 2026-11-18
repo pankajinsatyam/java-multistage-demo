@@ -1,0 +1,28 @@
+# =====================================================================
+# VERSION 3 — MULTI-STAGE + ALPINE JRE + non-root user
+#
+# Same idea as version 2, but the runtime image is based on Alpine
+# Linux, which is a much smaller operating system than Ubuntu.
+# We also run the app as a normal user instead of root (good security
+# habit, costs nothing in size).
+# =====================================================================
+
+# ---------- Stage 1: build ----------
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn -B dependency:go-offline
+COPY src ./src
+RUN mvn -B package -DskipTests
+
+# ---------- Stage 2: run ----------
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+RUN addgroup -S app && adduser -S app -G app
+COPY --from=build --chown=app:app /app/target/app.jar app.jar
+USER app
+
+ENV IMAGE_VARIANT=3-multistage-alpine
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]

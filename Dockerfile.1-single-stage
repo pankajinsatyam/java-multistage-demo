@@ -1,0 +1,21 @@
+# =====================================================================
+# VERSION 1 — SINGLE STAGE (the "before" picture)
+#
+# One image does everything: it has Maven + full JDK, downloads all
+# dependencies, compiles the code, AND runs the app.
+# Problem: all the build tools and the Maven cache (~/.m2) stay inside
+# the final image even though we only need the .jar to run.
+# =====================================================================
+FROM maven:3.9-eclipse-temurin-21
+
+WORKDIR /app
+
+COPY pom.xml .
+COPY src ./src
+
+# Build the jar (this also fills /root/.m2 with downloaded libraries)
+RUN mvn -B package -DskipTests
+
+ENV IMAGE_VARIANT=1-single-stage
+EXPOSE 8080
+CMD ["java", "-jar", "target/app.jar"]

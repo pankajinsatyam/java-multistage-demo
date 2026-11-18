@@ -1,0 +1,50 @@
+# =====================================================================
+# VERSION 4 — THREE STAGES: build jar + build a custom tiny Java + run
+#
+# A normal JRE contains every Java module (GUI, CORBA leftovers, etc.).
+# `jlink` lets us create our OWN Java runtime with only the modules this
+# app needs. Then we put that mini-Java on plain Alpine Linux.
+#
+# Stage 1: build the jar            (Maven + JDK)
+# Stage 2: build a custom mini JRE  (jlink, on Alpine so it matches)
+# Stage 3: final image              (plain Alpine + mini JRE + jar)
+# =====================================================================
+
+# ---------- Stage 1: build the jar ----------
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn -B dependency:go-offline
+COPY src ./src
+RUN mvn -B package -DskipTests
+
+# ---------- Stage 2: build a custom Java runtime ----------
+# Must be the Alpine JDK, because the final image is Alpine
+# (Alpine uses a different C library, musl, than Ubuntu's glibc).
+FROM eclipse-temurin:21-jdk-alpine AS jre-builder
+
+# Modules a Spring Boot web app normally needs.
+# If the app fails with "NoClassDefFoundError: java/..." add the module here.
+RUN jlink \
+      --add-modules java.base,java.compiler,java.desktop,java.instrument,java.management,java.naming,java.net.http,java.prefs,java.rmi,java.scripting,java.security.jgss,java.sql,java.xml,jdk.crypto.ec,jdk.jfr,jdk.management,jdk.unsupported \
+      --strip-debug \
+      --no-man-pages \
+      --no-header-files \
+      --compress=zip-6 \
+      --output /custom-jre
+
+# ---------- Stage 3: run ----------
+FROM alpine:3.20
+
+ENV JAVA_HOME=/opt/java
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+COPY --from=jre-builder /custom-jre $JAVA_HOME
+
+WORKDIR /app
+RUN addgroup -S app && adduser -S app -G app
+COPY --from=build --chown=app:app /app/target/app.jar app.jar
+USER app
+
+ENV IMAGE_VARIANT=4-multistage-jlink
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
